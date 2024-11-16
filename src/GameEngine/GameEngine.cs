@@ -163,7 +163,7 @@ public struct Color255(byte r, byte g, byte b, byte a = 255){
     public byte a = a;
 
     public static Color255 Create(Color color) {
-        return new Color255((byte)(color.r*255), (byte)(color.g*255), (byte)(color.b*255));
+        return new Color255((byte)(color.r*255), (byte)(color.g*255), (byte)(color.b*255), (byte)(color.a*255));
     }
 }
 

@@ -1,9 +1,11 @@
 namespace SpriteGraphics;
+
 using GameEngine;
 
 class Sprite {
     public Transform2D transform2D;
     public MainTexture mainTexture;
+    public Color tint = new (0,0,0,0.4f);
 
     public Sprite(Vector2 position, float angleDegrees, Vector2 scale){
         transform2D = new Transform2D{
@@ -11,9 +13,16 @@ class Sprite {
             angleDegrees = angleDegrees,
             scale = scale,
         };
-        mainTexture = new MainTexture((int)(scale.x*2), (int)(scale.y*2));
-        mainTexture.Clear(new Color255(0,0,0,100));
-        mainTexture.UpdateData();
+        mainTexture = MainTexture.whiteTexture;
+    }
+
+    public void BeginPaint(){
+        if(mainTexture == MainTexture.whiteTexture){
+            mainTexture = new MainTexture((int)(transform2D.scale.x * 2), (int)(transform2D.scale.y * 2));
+            mainTexture.Clear(Color255.Create(tint));
+            mainTexture.UpdateData();
+            tint = Color.White;
+        }
     }
 
     public void DrawOnTexture(Vector2 viewportPosition){
@@ -27,14 +36,14 @@ class Sprite {
     }
 
     public void Draw(){
-        Graphics.Draw(transform2D, mainTexture, Color.White);
+        Graphics.Draw(transform2D, mainTexture, tint);
     }
 }
 
 static class Handles{
     static string? id;
     const int posHandleSize = 25;
-    const int rotHandleSize = 35;
+    const int rotHandleSize = 20;
     const int borderSize = 5;
     static MainTexture rotationHandleTexture = GetCircleHandleTexture(rotHandleSize, borderSize);
     static MainTexture positionHandleTexture = GetSquareHandleTexture(posHandleSize, borderSize);
@@ -57,7 +66,8 @@ static class Handles{
         return tex;
     }
 
-    static void PositionHandle(string name, Transform2D transform2D, Vector2 handleLocal, ref bool used){
+    static void PositionHandle(Transform2D transform2D, Vector2 handleLocal, ref bool used){
+        var name = "Position"+handleLocal.x+handleLocal.y;
         var handleTransform2D = new Transform2D(
             transform2D.GetWorldPositionFromLocal(handleLocal), 
             transform2D.angleDegrees,
@@ -94,9 +104,10 @@ static class Handles{
         Graphics.Draw(handleTransform2D, positionHandleTexture, used ? Color.Orange : Color.LightCyan);
     }
 
-    static void RotationHandle(Transform2D transform2D, ref bool used){
+    static void RotationHandle(Transform2D transform2D, Vector2 handleLocal, ref bool used){
+        var name = "Rotation"+handleLocal.x+handleLocal.y;
         var rotationHandleTransform = new Transform2D(
-            transform2D.position, 
+            transform2D.GetWorldPositionFromLocal(handleLocal), 
             transform2D.angleDegrees, 
             new Vector2(rotHandleSize * 0.5f, rotHandleSize * 0.5f)
         );
@@ -106,15 +117,15 @@ static class Handles{
         }
         if(!used){
             if(Input.GetButtonDown(Input.MOUSE_BUTTON_1) && rotationHandleTransform.Contains(Input.MousePosition)){
-                id = "Rotation";
+                id = name;
                 lastAngle = JMath.FindAngle(transform2D.position, Input.MousePosition);
                 used = true;
             }
-            else if(Input.GetButtonUp(Input.MOUSE_BUTTON_1) && id == "Rotation"){
+            else if(Input.GetButtonUp(Input.MOUSE_BUTTON_1) && id == name){
                 id = null;
                 used = true;
             }
-            else if(Input.GetButton(Input.MOUSE_BUTTON_1) && id == "Rotation"){
+            else if(Input.GetButton(Input.MOUSE_BUTTON_1) && id == name){
                 var newAngle = JMath.FindAngle(transform2D.position, Input.MousePosition);
                 transform2D.angleDegrees += newAngle - lastAngle;
                 lastAngle = newAngle;
@@ -138,11 +149,14 @@ static class Handles{
     public static bool RectHandle(Transform2D transform2D){
         var used = false;
         DrawBorder(transform2D, Color.DarkCyan);
-        PositionHandle("TopLeft", transform2D, new Vector2(-1,-1), ref used);
-        PositionHandle("TopRight", transform2D, new Vector2(1,-1), ref used);           
-        PositionHandle("BottomRight", transform2D, new Vector2(1,1), ref used);
-        PositionHandle("BottomLeft", transform2D, new Vector2(-1,1), ref used);
-        RotationHandle(transform2D, ref used);
+        PositionHandle(transform2D, new Vector2(-1,-1), ref used);
+        PositionHandle(transform2D, new Vector2(1,-1), ref used);           
+        PositionHandle(transform2D, new Vector2(1,1), ref used);
+        PositionHandle(transform2D, new Vector2(-1,1), ref used);
+        RotationHandle(transform2D, new Vector2(0,1), ref used);
+        RotationHandle(transform2D, new Vector2(1,0), ref used);
+        RotationHandle(transform2D, new Vector2(0,-1), ref used);
+        RotationHandle(transform2D, new Vector2(-1,0), ref used);
         if(!used){
             if(Input.GetButtonDown(Input.MOUSE_BUTTON_1) && transform2D.Contains(Input.MousePosition)){
                 id = "Position";
@@ -161,17 +175,13 @@ static class Handles{
     }
 }
 
-enum Mode { Edit, Paint}
+enum Mode { Edit, Rect, Paint}
 class SpriteGraphics : Game{
     List<Sprite> sprites = [];
     Sprite? selected = null;
-    Mode mode = Mode.Edit;
-
-    public override void Awake(){
-        sprites.Add(new Sprite(new Vector2(800, 400), 30, new Vector2(250, 250)));
-        sprites.Add(new Sprite(new Vector2(400, 1200), 45, new Vector2(200, 300)));
-        sprites.Add(new Sprite(new Vector2(500, 500), 35, new Vector2(300, 300)));
-    }
+    Mode mode = Mode.Rect;
+    Vector2 start;
+    bool dragging;
 
     Sprite? GetSpriteAtPosition(Vector2 position){
         for(var i=sprites.Count-1;i>=0;i--){
@@ -194,21 +204,44 @@ class SpriteGraphics : Game{
                     selected = GetSpriteAtPosition(Input.MousePosition);
                 }
             }
+            if(selected!=null && Input.GetKeyDown(Input.KEY_BACKSPACE)){
+                sprites.Remove(selected);
+            }
         }
         else if(mode == Mode.Paint){
             if(selected!=null){
                 Handles.DrawBorder(selected.transform2D, Color.DarkCyan);
                 if(Input.GetButton(Input.MOUSE_BUTTON_1)){
-                    selected!.DrawOnTexture(Input.MousePosition);
+                    selected.DrawOnTexture(Input.MousePosition);
                 }
             }
             
         }
-        if(Input.GetKeyDown(Input.KEY_P)){
+        else if(mode == Mode.Rect){
+            if(Input.GetButtonDown(Input.MOUSE_BUTTON_1)){
+                start = Input.MousePosition;
+                sprites.Add(new Sprite(start, 0, Vector2.Zero));
+                dragging = true;
+            }
+            else if(dragging && Input.GetButtonUp(Input.MOUSE_BUTTON_1)){
+                dragging = false;
+            }
+            else if(dragging && Input.GetButton(Input.MOUSE_BUTTON_1)){
+                var sprite = sprites[^1];
+                sprite.transform2D.position = (start + Input.MousePosition)/2f;
+                sprite.transform2D.scale = (Input.MousePosition - start).Abs()/2f;
+                selected = sprite;
+            }
+        }
+        if(Input.GetKeyDown(Input.KEY_P) && selected!=null){
             mode = Mode.Paint;
+            selected.BeginPaint();
         }
         else if(Input.GetKeyDown(Input.KEY_E)){
             mode = Mode.Edit;
+        }
+        else if(Input.GetKeyDown(Input.KEY_R)){
+            mode = Mode.Rect;
         }
     }
 
