@@ -137,7 +137,7 @@ static class Handles{
 
     public static bool RectHandle(Transform2D transform2D){
         var used = false;
-        DrawBorder(transform2D, Color.LightCyan);
+        DrawBorder(transform2D, Color.DarkCyan);
         PositionHandle("TopLeft", transform2D, new Vector2(-1,-1), ref used);
         PositionHandle("TopRight", transform2D, new Vector2(1,-1), ref used);           
         PositionHandle("BottomRight", transform2D, new Vector2(1,1), ref used);
@@ -175,7 +175,7 @@ class SpriteGraphics : Game{
 
     Sprite? GetSpriteAtPosition(Vector2 position){
         for(var i=sprites.Count-1;i>=0;i--){
-            if(sprites[i].transform2D.Contains(Input.MousePosition)){
+            if(sprites[i].transform2D.Contains(position)){
                 return sprites[i];
             }
         }
@@ -197,7 +197,7 @@ class SpriteGraphics : Game{
         }
         else if(mode == Mode.Paint){
             if(selected!=null){
-                Handles.DrawBorder(selected.transform2D, Color.LightCyan);
+                Handles.DrawBorder(selected.transform2D, Color.DarkCyan);
                 if(Input.GetButton(Input.MOUSE_BUTTON_1)){
                     selected!.DrawOnTexture(Input.MousePosition);
                 }

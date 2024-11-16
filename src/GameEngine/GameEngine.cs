@@ -175,6 +175,7 @@ public struct Color(float r, float g, float b, float a = 1){
 
     public static Color Blue => new (0,0,1);
     public static Color LightCyan => new (0.3f,1,1);
+    public static Color DarkCyan => new (0,0.3f,0.3f);
     public static Color Red => new (1,0,0);
     public static Color Yellow => new (1,1,0);
     public static Color Green => new (0,1,0);
