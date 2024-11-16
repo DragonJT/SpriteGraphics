@@ -263,6 +263,13 @@ public class MainTexture {
         return tex;
     }
 
+    public Color255 GetColor(Vector2 fraction){
+        var x = (int)(fraction.x * width);
+        var y = (int)(fraction.y * height);
+        var start = (x + y*width) * 4;
+        return new Color255(bytes[start + 0], bytes[start + 1], bytes[start + 2], bytes[start + 3]);
+    }
+
     public void SetPixel(int x, int y, Color255 color){
         var start = (x + y*width) * 4;
         bytes[start + 0] = color.r;
@@ -358,12 +365,16 @@ public class Transform2D {
         this.scale = scale;
     }
 
-    public static Transform2D CreateLine(Vector2 a, Vector2 b, float width){
+    public static Transform2D Line(Vector2 a, Vector2 b, float width){
         return new Transform2D(
             (a + b) / 2f,
             JMath.FindAngle(a, b),
             new Vector2((b-a).Length() * 0.5f, width * 0.5f)
         );
+    }
+
+    public static Transform2D Rect(Rect rect){
+        return new Transform2D(rect.Center, 0, rect.Size/2f);
     }
 
     public Matrix4x4 GetMatrix(){
