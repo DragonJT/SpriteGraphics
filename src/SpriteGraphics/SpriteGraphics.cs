@@ -266,11 +266,13 @@ class SpriteGraphics : Game{
                 }
             }
         }
-        if(Input.GetKeyDown(Input.KEY_P) && selected!=null){
+        if(Input.GetKeyDown(Input.KEY_P)){
             mode = Mode.Paint;
+            selected = GetSpriteAtPosition(Input.MousePosition);
         }
         if(Input.GetKeyDown(Input.KEY_E)){
             mode = Mode.Edit;
+            selected = GetSpriteAtPosition(Input.MousePosition);
         }
         if(Input.GetKeyDown(Input.KEY_R)){
             mode = Mode.Rect;
