@@ -4,8 +4,14 @@ using GameEngine;
 
 class Sprite {
     public Transform2D transform2D;
-    public MainTexture mainTexture;
-    public Color tint = new (0,0,0,0.4f);
+    public MainTexture? mainTexture;
+
+    public Sprite Clone(){
+        var sprite = new Sprite(transform2D.position, transform2D.angleDegrees, transform2D.scale){
+            mainTexture = mainTexture
+        };
+        return sprite;
+    }
 
     public Sprite(Vector2 position, float angleDegrees, Vector2 scale){
         transform2D = new Transform2D{
@@ -13,30 +19,29 @@ class Sprite {
             angleDegrees = angleDegrees,
             scale = scale,
         };
-        mainTexture = MainTexture.whiteTexture;
     }
 
-    public void BeginPaint(){
-        if(mainTexture == MainTexture.whiteTexture){
-            mainTexture = new MainTexture((int)(transform2D.scale.x * 2), (int)(transform2D.scale.y * 2));
-            mainTexture.Clear(Color255.Create(tint));
-            mainTexture.UpdateData();
-            tint = Color.White;
-        }
-    }
-
-    public void DrawOnTexture(Vector2 viewportPosition){
+    public void DrawOnTexture(Vector2 viewportPosition, Brush brush){
+        mainTexture ??= new MainTexture((int)(transform2D.scale.x * 2), (int)(transform2D.scale.y * 2));
         var mousePos = transform2D.GetLocalPositionFromWorld(viewportPosition);
         var x = (int)((mousePos.x + 1) * mainTexture.width * 0.5f);
         var y = (int)((mousePos.y + 1) * mainTexture.height * 0.5f);
-        var w = 20;
-        var h = 20;
-        mainTexture!.SetPixelRect(x,y,x+w,y+h,Color255.Create(Color.Red));
+        if(brush.brushShape == BrushShape.Square){
+            mainTexture!.SetPixelRect(x-brush.radius,y-brush.radius,x+brush.radius,y+brush.radius,Color255.Create(Color.Red));
+        }
+        else if(brush.brushShape == BrushShape.Circle){
+            mainTexture!.SetPixelCircle(x-brush.radius,y-brush.radius,x+brush.radius,y+brush.radius,Color255.Create(Color.Red));
+        }
         mainTexture!.UpdateData();
     }
 
-    public void Draw(){
-        Graphics.Draw(transform2D, mainTexture, tint);
+    public void Draw(bool isSelected){
+        if(mainTexture == null || isSelected){
+            Graphics.Draw(transform2D, MainTexture.whiteTexture, new Color(0,0,0,0.4f));
+        }
+        if(mainTexture!=null){
+            Graphics.Draw(transform2D, mainTexture, Color.White);
+        }
     }
 }
 
@@ -176,10 +181,18 @@ static class Handles{
 }
 
 enum Mode { Edit, Rect, Paint}
+enum BrushShape { Square, Circle }
+
+class Brush {
+    public BrushShape brushShape = BrushShape.Square;
+    public int radius = 10;
+}
+
 class SpriteGraphics : Game{
     List<Sprite> sprites = [];
     Sprite? selected = null;
     Mode mode = Mode.Rect;
+    Brush brush = new();
     Vector2 start;
     bool dragging;
 
@@ -196,7 +209,7 @@ class SpriteGraphics : Game{
         Graphics.Clear(Color.Blue);
         
         foreach(var s in sprites){
-            s.Draw();
+            s.Draw(s == selected);
         }
         if(mode == Mode.Edit){
             if(selected == null || !Handles.RectHandle(selected!.transform2D)){
@@ -204,15 +217,17 @@ class SpriteGraphics : Game{
                     selected = GetSpriteAtPosition(Input.MousePosition);
                 }
             }
-            if(selected!=null && Input.GetKeyDown(Input.KEY_BACKSPACE)){
-                sprites.Remove(selected);
+            if(Input.GetKeyDown(Input.KEY_D) && selected!=null){
+                var duplicated = selected.Clone();
+                sprites.Add(duplicated);
+                selected = duplicated;
             }
         }
         else if(mode == Mode.Paint){
             if(selected!=null){
                 Handles.DrawBorder(selected.transform2D, Color.DarkCyan);
                 if(Input.GetButton(Input.MOUSE_BUTTON_1)){
-                    selected.DrawOnTexture(Input.MousePosition);
+                    selected.DrawOnTexture(Input.MousePosition, brush);
                 }
             }
             
@@ -235,13 +250,38 @@ class SpriteGraphics : Game{
         }
         if(Input.GetKeyDown(Input.KEY_P) && selected!=null){
             mode = Mode.Paint;
-            selected.BeginPaint();
         }
-        else if(Input.GetKeyDown(Input.KEY_E)){
+        if(Input.GetKeyDown(Input.KEY_E)){
             mode = Mode.Edit;
         }
-        else if(Input.GetKeyDown(Input.KEY_R)){
+        if(Input.GetKeyDown(Input.KEY_R)){
             mode = Mode.Rect;
+        }
+        if(selected!=null && Input.GetKeyDown(Input.KEY_BACKSPACE)){
+            sprites.Remove(selected);
+            selected = null;
+        }
+        
+        if(Input.GetKeyDown(Input.KEY_COMMA)){
+            brush.brushShape = BrushShape.Square;
+        }
+        if(Input.GetKeyDown(Input.KEY_PERIOD)){
+            brush.brushShape = BrushShape.Circle;
+        }
+        if(Input.GetKey(Input.KEY_0)){
+            brush.radius = 5;
+        }
+        if(Input.GetKey(Input.KEY_1)){
+            brush.radius = 10;
+        }
+        if(Input.GetKey(Input.KEY_2)){
+            brush.radius = 20;
+        }
+        if(Input.GetKey(Input.KEY_3)){
+            brush.radius = 40;
+        }
+        if(Input.GetKey(Input.KEY_4)){
+            brush.radius = 80;
         }
     }
 
