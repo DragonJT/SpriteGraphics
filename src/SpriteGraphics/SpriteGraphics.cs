@@ -1,6 +1,7 @@
 namespace SpriteGraphics;
 
 using GameEngine;
+using GameEngine.SebText.FontLoading;
 
 class Sprite {
     public Transform2D transform2D;
@@ -190,6 +191,7 @@ class Brush {
 }
 
 class SpriteGraphics : Game{
+    FontData fontData = FontParser.Parse("Fonts/Roboto-Medium.ttf");
     List<Sprite> sprites = [];
     Sprite? selected = null;
     Mode mode = Mode.Rect;
@@ -214,6 +216,10 @@ class SpriteGraphics : Game{
             }
         }
         return null;
+    }
+
+    void RemoveZeroSizeSprites(){
+        sprites.RemoveAll(s=>s.transform2D.scale.x == 0 || s.transform2D.scale.y == 0);
     }
 
     public override void Draw(){
@@ -267,10 +273,12 @@ class SpriteGraphics : Game{
             }
         }
         if(Input.GetKeyDown(Input.KEY_P)){
+            RemoveZeroSizeSprites();
             mode = Mode.Paint;
             selected = GetSpriteAtPosition(Input.MousePosition);
         }
         if(Input.GetKeyDown(Input.KEY_E)){
+            RemoveZeroSizeSprites();
             mode = Mode.Edit;
             selected = GetSpriteAtPosition(Input.MousePosition);
         }
@@ -302,6 +310,9 @@ class SpriteGraphics : Game{
         }
         if(Input.GetKey(Input.KEY_4)){
             brush.radius = 80;
+        }
+        if(Input.GetKeyDown(Input.KEY_T)){
+            selected!.mainTexture = MainTexture.CreateCharacter(fontData, 'a', 0.5f, Color.White.ToColor255());
         }
     }
 

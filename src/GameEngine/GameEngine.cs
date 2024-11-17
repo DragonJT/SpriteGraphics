@@ -162,9 +162,7 @@ public struct Color255(byte r, byte g, byte b, byte a = 255){
     public byte b = b;
     public byte a = a;
 
-    public static Color255 Create(Color color) {
-        return new Color255((byte)(color.r*255), (byte)(color.g*255), (byte)(color.b*255), (byte)(color.a*255));
-    }
+    
 }
 
 public struct Color(float r, float g, float b, float a = 1){
@@ -186,6 +184,10 @@ public struct Color(float r, float g, float b, float a = 1){
 
     public override string ToString() {
         return "("+r+","+g+","+b+","+a+")";
+    }
+
+    public Color255 ToColor255() {
+        return new Color255((byte)(r*255), (byte)(g*255), (byte)(b*255), (byte)(a*255));
     }
 }
 

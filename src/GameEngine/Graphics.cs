@@ -2,6 +2,8 @@
 namespace GameEngine;
 using System.Runtime.InteropServices;
 using System.Numerics;
+using SebText.FontLoading;
+using System.Reflection.PortableExecutable;
 
 static class Kernel32{
     [DllImport("kernel32.dll")]
@@ -248,6 +250,58 @@ static class Shader{
     }
 }
 
+static class Font {
+
+    public static byte[,] CreateCharacter(FontData.GlyphData glyphData, float fontScale){
+        var minY = (int)(glyphData.MinY * fontScale) - 1; 
+        var minX = (int)(glyphData.MinX * fontScale) - 1;
+        var maxY = (int)(glyphData.MaxY * fontScale) + 1;
+        var maxX = (int)(glyphData.MaxX * fontScale) + 1;
+        var width = maxX - minX;
+        var height = maxY - minY;
+        byte[,] pixels = new byte[width, height];
+
+        List<Vector2[]> contours = GlythHelper.CreateContoursWithImpliedPoints(glyphData, fontScale);
+        for(var ci = 0; ci< contours.Count; ci++){
+            var contour = contours[ci];
+            for(var i = 0;i < contour.Length-2; i+=2){
+                var dist = (contour[i] - contour[i+2]).Length();
+                int resolution = (int)(dist * 2);
+                for(var ti=0;ti<=resolution;ti++){
+                    var point = Vector2.Bezier(contour[i], contour[i+1], contour[i+2], ti/(float)resolution);
+                    var pointI = new Vector2i((int)point.x, (int)point.y);
+                    if(contour[i].y < contour[i+2].y){
+                        if(pixels[pointI.x - minX, pointI.y - minY] == 0){
+                            pixels[pointI.x - minX, pointI.y - minY] = 254;
+                        }
+                    }
+                    else{
+                        pixels[pointI.x - minX, pointI.y - minY] = 253;
+                    }
+                }
+            }
+        }
+        for(var y=1;y<height;y++){
+            bool draw = false;
+            for(var x=1;x<width;x++){
+                if(pixels[x,y] == 254){
+                    draw = true;
+                }
+                else if(pixels[x,y] == 253){
+                    draw = false;
+                }
+                else if(pixels[x, y-1] == 255){
+                    pixels[x,y] = 255;
+                }
+                else if(draw){
+                    pixels[x,y] = 255;
+                }
+            }
+        }
+        return pixels;
+    }
+}
+
 public class MainTexture {
     public static readonly MainTexture whiteTexture = GetWhiteTexture();
     public readonly int width;
@@ -255,6 +309,28 @@ public class MainTexture {
     byte[] bytes;
     Buffer data;
     uint id;
+
+    public static MainTexture? CreateCharacter(FontData fontData, char c, float fontScale, Color255 color){
+        if(fontData.TryGetGlyph(c, out FontData.GlyphData glyphData)){
+            var pixels = Font.CreateCharacter(glyphData, fontScale);
+            var width = pixels.GetLength(0);
+            var height = pixels.GetLength(1);
+            var tex = new MainTexture(width,height);
+            for(var x = 0;x < width;x++){
+                for(var y = 0;y < height;y++){
+                    if(pixels[x,height - y - 1] > 0){
+                        tex.SetPixel(x,y,color);
+                    }
+                    else{
+                        tex.SetPixel(x,y,new Color255(0,0,0,0));
+                    }
+                }
+            }
+            tex.UpdateData();
+            return tex;
+        }
+        return null;
+    }
 
     static MainTexture GetWhiteTexture(){
         var tex = new MainTexture(1,1);
