@@ -312,7 +312,7 @@ class SpriteGraphics : Game{
             brush.radius = 80;
         }
         if(Input.GetKeyDown(Input.KEY_T)){
-            selected!.mainTexture = MainTexture.CreateCharacter(fontData, 'a', 0.5f, Color.White.ToColor255());
+            selected!.mainTexture = MainTexture.CreateText(fontData, "youtube", 400, Color.White.ToColor255());
         }
     }
 

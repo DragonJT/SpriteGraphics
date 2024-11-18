@@ -3,7 +3,6 @@ namespace GameEngine;
 using System.Runtime.InteropServices;
 using System.Numerics;
 using SebText.FontLoading;
-using System.Reflection.PortableExecutable;
 
 static class Kernel32{
     [DllImport("kernel32.dll")]
@@ -251,50 +250,51 @@ static class Shader{
 }
 
 static class Font {
+    class ContourAtHeight(bool goesUp, float x, float y){
+        public bool goesUp = goesUp;
+        public float x = x;
+        public float y = y;
+    }
 
     public static byte[,] CreateCharacter(FontData.GlyphData glyphData, float fontScale){
-        var minY = (int)(glyphData.MinY * fontScale) - 1; 
-        var minX = (int)(glyphData.MinX * fontScale) - 1;
-        var maxY = (int)(glyphData.MaxY * fontScale) + 1;
-        var maxX = (int)(glyphData.MaxX * fontScale) + 1;
+        var enlarger = 1;
+        var minY = (int)(glyphData.MinY * fontScale) - enlarger; 
+        var minX = (int)(glyphData.MinX * fontScale) - enlarger;
+        var maxY = (int)(glyphData.MaxY * fontScale) + enlarger;
+        var maxX = (int)(glyphData.MaxX * fontScale) + enlarger;
         var width = maxX - minX;
         var height = maxY - minY;
         byte[,] pixels = new byte[width, height];
-
         List<Vector2[]> contours = GlythHelper.CreateContoursWithImpliedPoints(glyphData, fontScale);
+        List<ContourAtHeight>[] contourAtHeights = new List<ContourAtHeight>[height];
+        for(var y = 0;y < height;y++){
+            contourAtHeights[y] = [];
+        }
         for(var ci = 0; ci< contours.Count; ci++){
             var contour = contours[ci];
             for(var i = 0;i < contour.Length-2; i+=2){
                 var dist = (contour[i] - contour[i+2]).Length();
-                int resolution = (int)(dist * 2);
+                int resolution = (int)(dist * 2) + 1;
                 for(var ti=0;ti<=resolution;ti++){
                     var point = Vector2.Bezier(contour[i], contour[i+1], contour[i+2], ti/(float)resolution);
-                    var pointI = new Vector2i((int)point.x, (int)point.y);
-                    if(contour[i].y < contour[i+2].y){
-                        if(pixels[pointI.x - minX, pointI.y - minY] == 0){
-                            pixels[pointI.x - minX, pointI.y - minY] = 254;
-                        }
-                    }
-                    else{
-                        pixels[pointI.x - minX, pointI.y - minY] = 253;
+                    var contourAtHeight = contourAtHeights[(int)point.y - minY];
+                    if(contour[i].y != contour[i+2].y){
+                        contourAtHeight.Add(new ContourAtHeight(contour[i].y < contour[i+2].y, point.x - minX, point.y - minY));
                     }
                 }
             }
         }
-        for(var y=1;y<height;y++){
+        for(var y = 0;y < height;y++){
+            var contourAtHeight = contourAtHeights[y].OrderBy(c=>c.x).ToArray();
+            int i = 0;
             bool draw = false;
-            for(var x=1;x<width;x++){
-                if(pixels[x,y] == 254){
-                    draw = true;
+            for(var x = 0;x < width;x++){
+                while(i<contourAtHeight.Length && contourAtHeight[i].x < x){
+                    draw = contourAtHeight[i].goesUp;
+                    i++;
                 }
-                else if(pixels[x,y] == 253){
-                    draw = false;
-                }
-                else if(pixels[x, y-1] == 255){
-                    pixels[x,y] = 255;
-                }
-                else if(draw){
-                    pixels[x,y] = 255;
+                if(draw){
+                    pixels[x,y] = 1;
                 }
             }
         }
@@ -318,11 +318,9 @@ public class MainTexture {
             var tex = new MainTexture(width,height);
             for(var x = 0;x < width;x++){
                 for(var y = 0;y < height;y++){
-                    if(pixels[x,height - y - 1] > 0){
-                        tex.SetPixel(x,y,color);
-                    }
-                    else{
-                        tex.SetPixel(x,y,new Color255(0,0,0,0));
+                    var p = pixels[x,height - y - 1];
+                    if(p > 0){
+                        tex.SetPixel(x,y,new Color255((byte)(color.r*p), (byte)(color.g*p), (byte)(color.b*p), (byte)(color.a*p)));
                     }
                 }
             }
@@ -330,6 +328,44 @@ public class MainTexture {
             return tex;
         }
         return null;
+    }
+
+    public static MainTexture? CreateText(FontData fontData, string text, int fontSize, Color255 color){
+        List<FontData.GlyphData> glyphs = [];
+        var width = 0;
+        float fontScale = fontSize / (float)fontData.UnitsPerEm;
+        var height = (int)(fontSize * 1.1f);
+        var baseLine = (int)(fontSize * 0.8f);
+        foreach(var c in text){
+            if(fontData.TryGetGlyph(c, out FontData.GlyphData glyphData)){
+                glyphs.Add(glyphData);
+                width += (int)(glyphData.AdvanceWidth * fontScale)+1;
+            }
+        }
+        if(glyphs.Count == 0){
+            return null;
+        }
+        var tex = new MainTexture(width, height);
+        int posX = 0;
+        foreach(var g in glyphs){
+            var pixels = Font.CreateCharacter(g, fontScale);
+            var cwidth = pixels.GetLength(0);
+            var cheight = pixels.GetLength(1);
+            int minx = (int)(g.MinX * fontScale);
+            int miny = (int)(g.MinY * fontScale);
+            for(var x = 0;x < cwidth;x++){
+                for(var y = 0;y < cheight;y++){
+                    var p = pixels[x, y];
+                    if(p > 0){
+                        var pixelColor = new Color255((byte)(color.r*p), (byte)(color.g*p), (byte)(color.b*p), (byte)(color.a*p));
+                        tex.SetPixel(x + minx + posX, baseLine - (y + miny), pixelColor);
+                    }
+                }
+            }
+            posX += (int)(g.AdvanceWidth * fontScale);
+        }
+        tex.UpdateData();
+        return tex;
     }
 
     static MainTexture GetWhiteTexture(){
@@ -347,6 +383,9 @@ public class MainTexture {
     }
 
     public void SetPixel(int x, int y, Color255 color){
+        if(x<0 || x>=width || y<0 || y>=height){
+            return;
+        }
         var start = (x + y*width) * 4;
         bytes[start + 0] = color.r;
         bytes[start + 1] = color.g;
